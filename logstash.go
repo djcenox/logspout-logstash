@@ -20,7 +20,7 @@ type LogstashAdapter struct {
 }
 
 // NewLogstashAdapter creates a LogstashAdapter with UDP as the default transport.
-func NewRancherLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
+func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 	transport, found := router.AdapterTransports.Lookup(route.AdapterTransport("udp"))
 	if !found {
 		return nil, errors.New("unable to find adapter: " + route.Adapter)
@@ -68,5 +68,5 @@ type LogstashMessage struct {
 	ID       string `json:"docker.id"`
 	Image    string `json:"docker.image"`
 	Hostname string `json:"docker.hostname"`
-	Labels   map[string]string   `json:"docker.labels,omitempty"
+	Labels   map[string]string   `json:"docker.labels,omitempty"`
 }
