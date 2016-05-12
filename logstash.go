@@ -20,7 +20,7 @@ type LogstashAdapter struct {
 }
 
 // NewLogstashAdapter creates a LogstashAdapter with UDP as the default transport.
-func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
+func NewRancherLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 	transport, found := router.AdapterTransports.Lookup(route.AdapterTransport("udp"))
 	if !found {
 		return nil, errors.New("unable to find adapter: " + route.Adapter)
@@ -40,36 +40,18 @@ func NewLogstashAdapter(route *router.Route) (router.LogAdapter, error) {
 // Stream implements the router.LogAdapter interface.
 func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 	for m := range logstream {
-		dockerInfo := DockerInfo{
+		msg := LogstashMessage{
+			Message:  m.Data,
 			Name:     m.Container.Name,
 			ID:       m.Container.ID,
 			Image:    m.Container.Config.Image,
 			Hostname: m.Container.Config.Hostname,
+			Labels:   m.Container.Config.Labels,
 		}
-		var js []byte
-
-		var jsonMsg map[string]interface{}
-		err := json.Unmarshal([]byte(m.Data), &jsonMsg)
+		js, err := json.Marshal(msg)
 		if err != nil {
-			// the message is not in JSON make a new JSON message
-			msg := LogstashMessage{
-				Message: m.Data,
-				Docker:  dockerInfo,
-			}
-			js, err = json.Marshal(msg)
-			if err != nil {
-				log.Println("logstash:", err)
-				continue
-			}
-		} else {
-			// the message is already in JSON just add the docker specific fields as a nested structure
-			jsonMsg["docker"] = dockerInfo
-
-			js, err = json.Marshal(jsonMsg)
-			if err != nil {
-				log.Println("logstash:", err)
-				continue
-			}
+			log.Println("logstash:", err)
+			continue
 		}
 		_, err = a.conn.Write(js)
 		if err != nil {
@@ -79,15 +61,12 @@ func (a *LogstashAdapter) Stream(logstream chan *router.Message) {
 	}
 }
 
-type DockerInfo struct {
-	Name     string `json:"name"`
-	ID       string `json:"id"`
-	Image    string `json:"image"`
-	Hostname string `json:"hostname"`
-}
-
 // LogstashMessage is a simple JSON input to Logstash.
 type LogstashMessage struct {
-	Message string     `json:"message"`
-	Docker  DockerInfo `json:"docker"`
+	Message  string `json:"message"`
+	Name     string `json:"docker.name"`
+	ID       string `json:"docker.id"`
+	Image    string `json:"docker.image"`
+	Hostname string `json:"docker.hostname"`
+	Labels   map[string]string   `json:"docker.labels,omitempty"
 }
